@@ -6,5 +6,5 @@ router = DefaultRouter()
 router.register(r'hotels', HotelViewSet)
 
 urlpatterns = [
-    path('', include(router.urls)),  # Ensure a valid view or include() is used
+    path('', include(router.urls)),  
 ]

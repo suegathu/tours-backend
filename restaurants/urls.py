@@ -1,16 +1,15 @@
 from django.urls import path
-from .views import (
-    fetch_restaurants_from_osm,
-    fetch_restaurant_images,
-    list_restaurants,
-    create_reservation,
-    restaurant_booking_link
-)
+from .views import RestaurantViewSet, ReservationViewSet
 
 urlpatterns = [
-    path("restaurants/", list_restaurants, name="list_restaurants"),
-    path("restaurants/images/<str:query>/", fetch_restaurant_images, name="fetch_restaurant_images"),
-    path("restaurants/hotels/osm/", fetch_restaurants_from_osm, name="fetch_hotels_from_osm"),
-    path("restaurants/reservations/", create_reservation, name="create_reservation"),
-    path("restaurants/<int:restaurant_id>/booking-link/", restaurant_booking_link, name="restaurant_booking_link"),
+    # Restaurant URLs
+    path('restaurants/', RestaurantViewSet.as_view({'get': 'list', 'post': 'create'}), name='restaurant-list'),
+    path('restaurants/<int:pk>/', RestaurantViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}), name='restaurant-detail'),
+    path('restaurants/search/', RestaurantViewSet.as_view({'get': 'search_restaurants'}), name='restaurant-search'),
+    path('restaurants/import/', RestaurantViewSet.as_view({'post': 'import_restaurants'}), name='restaurant-import'),
+    path('restaurants/<int:pk>/reserve/', RestaurantViewSet.as_view({'post': 'create_reservation'}), name='restaurant-reserve'),
+
+    # Reservation URLs
+    path('reservations/', ReservationViewSet.as_view({'get': 'list', 'post': 'create'}), name='reservation-list'),
+    path('reservations/<int:pk>/', ReservationViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}), name='reservation-detail'),
 ]
