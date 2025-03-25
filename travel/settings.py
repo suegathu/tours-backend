@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'hotels',
     'requests',
     'django_filters',
+    'restaurants',
 ]
 
 MIDDLEWARE = [
