@@ -45,6 +45,8 @@ INSTALLED_APPS = [
     'django_filters',
     'restaurants',
     'flights',
+
+
 ]
 
 MIDDLEWARE = [
@@ -156,3 +158,4 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 AVIATIONSTACK_API_KEY = config("AVIATIONSTACK_API_KEY")
+
