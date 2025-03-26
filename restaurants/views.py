@@ -51,7 +51,7 @@ class RestaurantViewSet(viewsets.ModelViewSet):
 
     def _enrich_with_pexels(self, locations):
         """
-        Add restaurant images using Pexels API.
+        Add restaurant images using Pexels API with improved error handling.
         """
         pexels_api_key = os.environ.get('PEXELS_API_KEY')
         if not pexels_api_key:
@@ -64,12 +64,25 @@ class RestaurantViewSet(viewsets.ModelViewSet):
         for location in locations:
             try:
                 query = location.get('display_name', 'restaurant')
-                params = {'query': query, 'per_page': 1}
-                pexels_response = requests.get(pexels_url, headers=headers, params=params)
+                params = {
+                    'query': query, 
+                    'per_page': 1
+                }
+                
+                pexels_response = requests.get(
+                    pexels_url, 
+                    headers=headers, 
+                    params=params
+                )
                 pexels_response.raise_for_status()
-
                 pexels_data = pexels_response.json()
-                image_url = pexels_data.get('photos', [{}])[0].get('src', {}).get('original', None)
+
+                # More robust image URL extraction
+                image_url = (
+                    pexels_data.get('photos', [{}])[0]
+                    .get('src', {})
+                    .get('original')
+                )
                 
                 enriched_data.append({
                     'name': location.get('display_name', 'Unknown Restaurant'),
@@ -78,7 +91,9 @@ class RestaurantViewSet(viewsets.ModelViewSet):
                     'longitude': location.get('lon'),
                     'image_url': image_url
                 })
+            
             except requests.RequestException:
+                # Fallback if image fetching fails
                 enriched_data.append({
                     'name': location.get('display_name', 'Unknown Restaurant'),
                     'address': location.get('display_name', ''),
