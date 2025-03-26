@@ -94,8 +94,19 @@ class Restaurant(models.Model):
         return restaurants
 
 
+from django.db import models
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+def get_default_user():
+    """Fetch the first available user or create a default one."""
+    user = User.objects.first()
+    return user.id if user else None  # Ensure it returns an integer
+
 class Reservation(models.Model):
-    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="reservations")
+    restaurant = models.ForeignKey("Restaurant", on_delete=models.CASCADE, related_name="reservations")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="reservations", default=get_default_user, null=True, blank=True)
     user_name = models.CharField(max_length=255)
     user_email = models.EmailField()
     date_time = models.DateTimeField()
@@ -103,4 +114,4 @@ class Reservation(models.Model):
     special_request = models.TextField(blank=True, null=True)
 
     def __str__(self):
-        return f"{self.user_name} - {self.restaurant.name} on {self.date_time}"
+        return f"{self.user.username} - {self.restaurant.name} on {self.date_time}"
