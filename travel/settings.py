@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'django_filters',
     'restaurants',
     'flights',
+    'attractions',
 
 
 ]

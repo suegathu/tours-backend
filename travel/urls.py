@@ -23,5 +23,6 @@ path('admin/', admin.site.urls),
 path('api/', include('hotels.urls')),
 path('', include('restaurants.urls')),
 path('', include('flights.urls')),
+path('', include('attractions.urls')),
 
 ]
