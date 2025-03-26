@@ -24,5 +24,6 @@ path('api/', include('hotels.urls')),
 path('', include('restaurants.urls')),
 path('', include('flights.urls')),
 path('', include('attractions.urls')),
+path('', include('accounts.urls')),
 
 ]
