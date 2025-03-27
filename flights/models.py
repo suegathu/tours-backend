@@ -1,16 +1,19 @@
 from django.db import models
 
+from django.db import models
+
 class Flight(models.Model):
-    flight_number = models.CharField(max_length=20, null=True, blank=True)
-    airline = models.CharField(max_length=100, null=True, blank=True)
-    departure_airport = models.CharField(max_length=100, null=True, blank=True)
-    arrival_airport = models.CharField(max_length=100, null=True, blank=True)
-    departure_time = models.DateTimeField(null=True, blank=True)
-    arrival_time = models.DateTimeField(null=True, blank=True)
-    status = models.CharField(max_length=50, null=True, blank=True)
-    price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    flight_number = models.CharField(max_length=20, unique=True)
+    airline = models.CharField(max_length=100)
+    departure_airport = models.CharField(max_length=255)
+    arrival_airport = models.CharField(max_length=255)
+    departure_time = models.DateTimeField()
+    arrival_time = models.DateTimeField()
+    status = models.CharField(max_length=50)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    travel_class = models.CharField(max_length=50, default="Economy")
     passengers = models.IntegerField(default=1)
-    travel_class = models.CharField(max_length=50, choices=[("economy", "Economy"), ("business", "Business"), ("first", "First Class")], null=True, blank=True)
+    booking_url = models.URLField(blank=True, null=True)  
 
     def __str__(self):
         return f"{self.flight_number or 'Unknown'} - {self.airline or 'Unknown'}"

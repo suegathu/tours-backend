@@ -2,29 +2,21 @@ import requests
 from decouple import config
 from rest_framework.response import Response
 from rest_framework import status, generics
-from rest_framework.views import APIView
+from rest_framework.decorators import api_view
 from .models import Flight, FlightBooking
 from .serializers import FlightSerializer, FlightBookingSerializer
+from rest_framework.views import APIView
 
 class FetchFlightsView(generics.GenericAPIView):
-    """
-    Fetches live flight data from AviationStack using city names and updates the database.
-    """
     def get(self, request, *args, **kwargs):
         API_KEY = config("AVIATIONSTACK_API_KEY")
-        departure = request.query_params.get("departure", "").strip()
-        arrival = request.query_params.get("arrival", "").strip()
-
         url = f"http://api.aviationstack.com/v1/flights?access_key={API_KEY}"
-        if departure:
-            url += f"&dep_city={departure}"
-        if arrival:
-            url += f"&arr_city={arrival}"
-
         response = requests.get(url)
 
         if response.status_code == 200:
-            flights_data = response.json().get("data", [])
+            data = response.json()
+            flights_data = data.get("data", [])
+
             saved_flights = []
 
             for flight in flights_data:
@@ -34,12 +26,12 @@ class FetchFlightsView(generics.GenericAPIView):
                 arrival_airport = flight.get("arrival", {}).get("airport")
                 departure_time = flight.get("departure", {}).get("estimated")
                 arrival_time = flight.get("arrival", {}).get("estimated")
-                status = flight.get("flight_status", "scheduled")
-                price = flight.get("price", {}).get("total", 0)
-                travel_class = flight.get("flight", {}).get("class", "Economy")
-                passengers = 1  # Default to 1 passenger
+                status = flight.get("flight_status")
+                price = flight.get("price", {}).get("total")
+                travel_class = flight.get("flight", {}).get("class")
+                passengers = 1  # Default to 1 passenger for fetched flights
 
-                if flight_number:
+                if flight_number:  # Ensure flight number exists
                     flight_obj, created = Flight.objects.update_or_create(
                         flight_number=flight_number,
                         defaults={
@@ -62,47 +54,33 @@ class FetchFlightsView(generics.GenericAPIView):
 
 
 class FlightBookingView(APIView):
-    """
-    Handles flight booking with availability checks.
-    """
     def post(self, request):
+        """
+        Handle flight booking creation
+        
+        Args:
+            request (Request): HTTP request object with booking details
+        
+        Returns:
+            Response: Booking confirmation or error details
+        """
         serializer = FlightBookingSerializer(data=request.data)
-
+        
         try:
             if serializer.is_valid():
-                flight_id = request.data.get("flight")
-                flight = Flight.objects.filter(id=flight_id).first()
-
-                if not flight:
-                    return Response({
-                        "success": False,
-                        "message": "Selected flight not found."
-                    }, status=status.HTTP_404_NOT_FOUND)
-
-                # Ensure seats are available before booking
-                if flight.passengers <= 0:
-                    return Response({
-                        "success": False,
-                        "message": "No available seats on this flight."
-                    }, status=status.HTTP_400_BAD_REQUEST)
-
-                # Reduce available seats
-                flight.passengers -= 1
-                flight.save()
-
                 booking = serializer.save()
                 return Response({
                     "success": True,
                     "message": "Flight booked successfully!", 
                     "booking": serializer.data
                 }, status=status.HTTP_201_CREATED)
-
+            
             return Response({
                 "success": False,
                 "message": "Booking validation failed",
                 "errors": serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
-
+        
         except Exception as e:
             return Response({
                 "success": False,
@@ -112,22 +90,19 @@ class FlightBookingView(APIView):
 
 
 class FlightListView(generics.ListAPIView):
-    """
-    Lists available flights with optional filters.
-    """
     serializer_class = FlightSerializer
-
+    
     def get_queryset(self):
-        queryset = Flight.objects.filter(passengers__gt=0)  # Only return flights with available seats
-        departure = self.request.query_params.get("departure", "").strip()
-        arrival = self.request.query_params.get("arrival", "").strip()
-        travel_class = self.request.query_params.get("travel_class", "").strip()
-
+        queryset = Flight.objects.all()
+        departure = self.request.query_params.get("departure", None)
+        arrival = self.request.query_params.get("arrival", None)
+        travel_class = self.request.query_params.get("travel_class", None)
+        
         if departure:
             queryset = queryset.filter(departure_airport__icontains=departure)
         if arrival:
             queryset = queryset.filter(arrival_airport__icontains=arrival)
         if travel_class:
             queryset = queryset.filter(travel_class=travel_class)
-
+        
         return queryset
