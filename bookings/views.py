@@ -91,7 +91,6 @@ def fetch_flights(request):
 
 # 🎟️ Book a Flight
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
 def book_flight(request):
     flight_number = request.data.get("flight_number")
     seat_number = request.data.get("seat_number")
