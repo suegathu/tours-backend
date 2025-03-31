@@ -158,8 +158,7 @@ def verify_qr_code(request, booking_id):
     }, status=status.HTTP_200_OK)
 
 # 🎟️ Check-in Flight
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@api_view(['GET'])
 def check_in_flight(request, booking_id):
     booking = get_object_or_404(FlightBooking, id=booking_id)
 
