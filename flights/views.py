@@ -1,108 +1,141 @@
-import requests
-from decouple import config
-from rest_framework.response import Response
-from rest_framework import status, generics
-from rest_framework.decorators import api_view
-from .models import Flight, FlightBooking
-from .serializers import FlightSerializer, FlightBookingSerializer
+import uuid
+import qrcode
+from io import BytesIO
+from django.core.files.base import ContentFile
+from django.core.mail import EmailMultiAlternatives
+from django.conf import settings
+from django.template.loader import render_to_string
 from rest_framework.views import APIView
-
-class FetchFlightsView(generics.GenericAPIView):
-    def get(self, request, *args, **kwargs):
-        API_KEY = config("AVIATIONSTACK_API_KEY")
-        url = f"http://api.aviationstack.com/v1/flights?access_key={API_KEY}"
-        response = requests.get(url)
-
-        if response.status_code == 200:
-            data = response.json()
-            flights_data = data.get("data", [])
-
-            saved_flights = []
-
-            for flight in flights_data:
-                flight_number = flight.get("flight", {}).get("iata")
-                airline = flight.get("airline", {}).get("name")
-                departure_airport = flight.get("departure", {}).get("airport")
-                arrival_airport = flight.get("arrival", {}).get("airport")
-                departure_time = flight.get("departure", {}).get("estimated")
-                arrival_time = flight.get("arrival", {}).get("estimated")
-                status = flight.get("flight_status")
-                price = flight.get("price", {}).get("total")
-                travel_class = flight.get("flight", {}).get("class")
-                passengers = 1  # Default to 1 passenger for fetched flights
-
-                if flight_number:  # Ensure flight number exists
-                    flight_obj, created = Flight.objects.update_or_create(
-                        flight_number=flight_number,
-                        defaults={
-                            "airline": airline,
-                            "departure_airport": departure_airport,
-                            "arrival_airport": arrival_airport,
-                            "departure_time": departure_time,
-                            "arrival_time": arrival_time,
-                            "status": status,
-                            "price": price,
-                            "travel_class": travel_class,
-                            "passengers": passengers,
-                        }
-                    )
-                    saved_flights.append(flight_obj.flight_number)
-
-            return Response({"message": "Flights updated successfully", "flights": saved_flights}, status=status.HTTP_200_OK)
-
-        return Response({"error": "Failed to fetch flights"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+from rest_framework.response import Response
+from rest_framework import status
+from .models import Flight, FlightBooking
+from .serializers import FlightBookingSerializer
 
 class FlightBookingView(APIView):
     def post(self, request):
         """
-        Handle flight booking creation
-        
-        Args:
-            request (Request): HTTP request object with booking details
-        
-        Returns:
-            Response: Booking confirmation or error details
+        Handle flight booking creation with QR code and email confirmation.
         """
         serializer = FlightBookingSerializer(data=request.data)
-        
-        try:
-            if serializer.is_valid():
-                booking = serializer.save()
-                return Response({
-                    "success": True,
-                    "message": "Flight booked successfully!", 
-                    "booking": serializer.data
-                }, status=status.HTTP_201_CREATED)
+
+        if serializer.is_valid():
+            booking = serializer.save()
             
-            return Response({
+            # Generate a unique booking reference
+            booking.booking_reference = str(uuid.uuid4())[:10]
+            booking.save()
+
+            # Generate QR Code
+            qr_data = (
+                f"BOOKING:{booking.booking_reference}|"
+                f"FLIGHT:{booking.flight.flight_number}|"
+                f"NAME:{booking.name}|"
+                f"TICKETS:{booking.num_tickets}"
+            )
+            qr = qrcode.make(qr_data)
+            buffer = BytesIO()
+            qr.save(buffer, format="PNG")
+            filename = f"qr_{booking.booking_reference}.png"
+            
+            # You need to add the qr_code field to your FlightBooking model
+            if not hasattr(booking, 'qr_code'):
+                # If field doesn't exist, we'll pass the image data to the email function
+                qr_code_data = buffer.getvalue()
+                booking.save()
+            else:
+                booking.qr_code.save(filename, ContentFile(buffer.getvalue()), save=True)
+
+            # Send Email Confirmation
+            self.send_booking_email(booking, qr_code_data if not hasattr(booking, 'qr_code') else None)
+
+            return Response(
+                {
+                    "success": True,
+                    "message": "Flight booked successfully!",
+                    "booking": serializer.data,
+                    "booking_reference": booking.booking_reference,
+                    "qr_code_url": booking.qr_code.url if hasattr(booking, 'qr_code') and booking.qr_code else None,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        return Response(
+            {
                 "success": False,
                 "message": "Booking validation failed",
-                "errors": serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        except Exception as e:
-            return Response({
-                "success": False,
-                "message": "An unexpected error occurred",
-                "error_details": str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                "errors": serializer.errors,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
+    def send_booking_email(self, booking, qr_code_data=None):
+        """
+        Send email confirmation with the booking QR code.
+        """
+        subject = f"Flight Booking Confirmation - {booking.flight.flight_number}"
+        
+        context = {
+            "booking": booking,
+            "flight_number": booking.flight.flight_number,
+            "airline": booking.flight.airline,
+            "departure_airport": booking.flight.departure_airport,
+            "arrival_airport": booking.flight.arrival_airport,
+            "departure_time": booking.flight.departure_time,
+            "arrival_time": booking.flight.arrival_time,
+            "booking_reference": booking.booking_reference,
+            "num_tickets": booking.num_tickets,
+        }
+        
+        html_message = render_to_string("email/booking_confirmation.html", context)
+        
+        plain_message = f"""
+        Hello {booking.name},
 
-class FlightListView(generics.ListAPIView):
-    serializer_class = FlightSerializer
-    
-    def get_queryset(self):
-        queryset = Flight.objects.all()
-        departure = self.request.query_params.get("departure", None)
-        arrival = self.request.query_params.get("arrival", None)
-        travel_class = self.request.query_params.get("travel_class", None)
+        Your flight booking is confirmed!
+        Booking Reference: {booking.booking_reference}
+        Flight: {booking.flight.flight_number} - {booking.flight.airline}
+        Departure: {booking.flight.departure_airport} at {booking.flight.departure_time}
+        Arrival: {booking.flight.arrival_airport} at {booking.flight.arrival_time}
+        Number of Tickets: {booking.num_tickets}
         
-        if departure:
-            queryset = queryset.filter(departure_airport__icontains=departure)
-        if arrival:
-            queryset = queryset.filter(arrival_airport__icontains=arrival)
-        if travel_class:
-            queryset = queryset.filter(travel_class=travel_class)
-        
-        return queryset
+        Please keep your booking reference for check-in.
+        """
+
+        email = EmailMultiAlternatives(
+            subject, 
+            plain_message, 
+            settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else settings.EMAIL_HOST_USER, 
+            [booking.email]
+        )
+        email.attach_alternative(html_message, "text/html")
+
+        # Attach QR code to the email
+        if hasattr(booking, 'qr_code') and booking.qr_code:
+            email.attach_file(booking.qr_code.path)
+        elif qr_code_data:
+            email.attach('booking_qrcode.png', qr_code_data, 'image/png')
+
+        email.send()
+
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
+
+@require_GET
+def verify_qr_code(request, booking_reference):
+    """
+    Verify a booking QR code based on the booking reference.
+    """
+    try:
+        booking = FlightBooking.objects.get(booking_reference=booking_reference)
+        return JsonResponse({
+            "status": "valid", 
+            "message": "Booking confirmed!", 
+            "name": booking.name,
+            "flight_number": booking.flight.flight_number,
+            "airline": booking.flight.airline,
+            "departure": booking.flight.departure_airport,
+            "arrival": booking.flight.arrival_airport,
+            "tickets": booking.num_tickets
+        })
+    except FlightBooking.DoesNotExist:
+        return JsonResponse({"status": "invalid", "message": "Invalid booking reference."})

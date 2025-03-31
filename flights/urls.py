@@ -1,9 +1,9 @@
 from django.urls import path
-from .views import FetchFlightsView, FlightListView, FlightBookingView
+from .views import FlightBookingView, FL
 
 urlpatterns = [
-    path('fetch-flights/', FetchFlightsView.as_view(), name='fetch-flights'),
     path('flights/', FlightListView.as_view(), name='flight-list'),
-    path('book-flight/', FlightBookingView.as_view(), name='book-flight'),
-    
+    path('flights/fetch/', views.FetchFlightsView.as_view(), name='fetch-flights'),
+    path('booking/', views.FlightBookingView.as_view(), name='flight-booking'),
+    path('verify-qr/<str:booking_reference>/', views.verify_qr_code, name='verify-qr'),
 ]
