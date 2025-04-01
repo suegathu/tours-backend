@@ -187,3 +187,13 @@ def get_available_seats(request, flight_number):
     available_seats = [seat for seat in range(1, flight.available_seats + 1) if seat not in booked_seats]
 
     return Response({"available_seats": available_seats}, status=status.HTTP_200_OK)
+@api_view(['GET'])
+def get_booking_details(request, booking_id):
+    booking = get_object_or_404(FlightBooking, id=booking_id)
+    return Response({
+        "id": booking.id,
+        "flight": booking.flight.name,
+        "seat": booking.seat,
+        "status": booking.status,
+        "qr_code_url": booking.qr_code_url if booking.qr_code_url else None
+    }, status=status.HTTP_200_OK)
