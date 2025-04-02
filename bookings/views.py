@@ -192,8 +192,8 @@ def get_booking_details(request, booking_id):
     booking = get_object_or_404(FlightBooking, id=booking_id)
     return Response({
         "id": booking.id,
-        "flight": booking.flight.name,
-        "seat": booking.seat,
+        "flight": booking.flight.flight_number,
+        "seat": booking.seat_number,
         "status": booking.status,
-        "qr_code_url": booking.qr_code_url if booking.qr_code_url else None
+        "qr_code_url": booking.qr_code.url if booking.qr_code else None
     }, status=status.HTTP_200_OK)

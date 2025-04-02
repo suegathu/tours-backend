@@ -134,3 +134,5 @@ AVIATIONSTACK_API_KEY = config("AVIATIONSTACK_API_KEY")
 
 # Custom User Model
 AUTH_USER_MODEL = 'accounts.User'
+
+MEDIA_URL = '/media/'

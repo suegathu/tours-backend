@@ -1,5 +1,7 @@
 from django.urls import path
 from .views import FlightListView, book_flight, verify_qr_code, check_in_flight, fetch_flights, get_available_seats, get_booking_details
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     path('flights/', FlightListView.as_view(), name='flight-list'),
@@ -10,4 +12,4 @@ urlpatterns = [
     path('flights/<str:flight_number>/available-seats/', get_available_seats, name='available-seats'),
     path('bookings/<uuid:booking_id>/', get_booking_details, name='booking-details'),
 
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
