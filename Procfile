@@ -1,1 +1,1 @@
-web: gunicorn tours.wsgi:application
+web: gunicorn travel.wsgi:application
