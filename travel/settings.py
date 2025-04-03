@@ -2,6 +2,9 @@ from pathlib import Path
 import os
 from datetime import timedelta
 from decouple import config
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,8 +31,10 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
-    "django_extensions",
-    
+    'django_extensions',
+    'cloudinary',
+    'cloudinary_storage',
+
     'hotels',
     'restaurants',
     'bookings',
@@ -65,26 +70,30 @@ TEMPLATES = [
         },
     },
 ]
+
 import os
 from dotenv import load_dotenv
 
-load_dotenv()  
+load_dotenv()
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD") 
-
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 
 WSGI_APPLICATION = 'travel.wsgi.application'
 
-# Database
+# PostgreSQL Database Configuration
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config('DB_NAME'),
+        'USER': config('DB_USER'),
+        'PASSWORD': config('DB_PASSWORD'),
+        'HOST': config('DB_HOST', default='localhost'),
+        'PORT': config('DB_PORT', default='5432'),
     }
 }
 
@@ -103,12 +112,20 @@ USE_I18N = True
 USE_TZ = True
 
 # Static files
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Default primary key field type
+# Media Configuration using Cloudinary
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME'),
+    'API_KEY': config('CLOUDINARY_API_KEY'),
+    'API_SECRET': config('CLOUDINARY_API_SECRET'),
+}
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-
+MEDIA_URL = '/media/'
 
 # Django REST Framework with JWT Authentication
 REST_FRAMEWORK = {
@@ -134,5 +151,3 @@ AVIATIONSTACK_API_KEY = config("AVIATIONSTACK_API_KEY")
 
 # Custom User Model
 AUTH_USER_MODEL = 'accounts.User'
-
-MEDIA_URL = '/media/'
