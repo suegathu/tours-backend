@@ -13,15 +13,14 @@ class RestaurantSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ReservationSerializer(serializers.ModelSerializer):
-    user_email = serializers.SerializerMethodField()
-    restaurant_name = serializers.SerializerMethodField()
+    restaurant_name = serializers.ReadOnlyField(source='restaurant.name')
+    user_email = serializers.ReadOnlyField(source='user.email')
     
     class Meta:
         model = Reservation
-        fields = '__all__'
-        
-    def get_user_email(self, obj):
-        return obj.user.email
-        
-    def get_restaurant_name(self, obj):
-        return obj.restaurant.name
+        fields = [
+            'id', 'restaurant', 'restaurant_name', 'user', 'user_email', 
+            'reservation_datetime', 'party_size', 'status', 
+            'special_requests', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['status', 'created_at', 'updated_at']

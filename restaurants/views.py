@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, action
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny
 from django.core.mail import send_mail
 from django.conf import settings
 import requests
@@ -20,22 +20,17 @@ class RestaurantViewSet(viewsets.ReadOnlyModelViewSet):
         Fetch restaurants from OSM based on location parameter
         Usage: /api/restaurants/fetch_restaurants/?location=nairobi
         """
-        location = request.query_params.get('location', 'nairobi')
+        location = request.query_params.get('location')
+        if not location:  # If param is missing or empty
+            return Response({'error': 'location is required'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Get geocoded coordinates for the location (simplified for demo)
-        # In production, use a geocoding API like Nominatim
-        locations = {
-            'nairobi': {'lat': -1.2921, 'lon': 36.8219},
-            'new york': {'lat': 40.7128, 'lon': -74.0060},
-            'london': {'lat': 51.5074, 'lon': -0.1278},
-            # Add more locations as needed
-        }
-        
-        # Default to Nairobi if location not found
-        coords = locations.get(location.lower(), locations['nairobi'])
+        # Geocode the given location: location -> coordinates
+        coords = self.geocode_location(location)
+        if not coords:
+            return Response({'error': 'Could not geocode the location'}, status=status.HTTP_400_BAD_REQUEST)
         
         # Call OSM with the coordinates
-        restaurants = self.fetch_restaurants_from_osm(coords['lat'], coords['lon'])
+        restaurants = self.fetch_restaurants_from_overpass(coords['lat'], coords['lon'])
         
         return Response({
             'location': location,
@@ -43,7 +38,37 @@ class RestaurantViewSet(viewsets.ReadOnlyModelViewSet):
             'restaurants': restaurants
         })
     
-    def fetch_restaurants_from_osm(self, lat, lon, radius=5000):
+    def geocode_location(self, location):
+        """
+        Convert location name to coordinates using Nominatim
+        """
+        nominatim_url = "https://nominatim.openstreetmap.org/search"
+        params = {
+            'q': location,
+            'format': 'json',
+            'limit': 1
+        }
+        
+        # Add a User-Agent header as required by Nominatim's usage policy
+        headers = {
+            'User-Agent': 'RestaurantFinderApp/1.0'
+        }
+        
+        try:
+            response = requests.get(nominatim_url, params=params, headers=headers)
+            data = response.json()
+            
+            if data and len(data) > 0:
+                return {
+                    'lat': float(data[0]['lat']),
+                    'lon': float(data[0]['lon'])
+                }
+            return None
+        except Exception as e:
+            print(f"Error geocoding location: {e}")
+            return None
+    
+    def fetch_restaurants_from_overpass(self, lat, lon, radius=5000):
         # Overpass API query
         overpass_url = "https://overpass-api.de/api/interpreter"
         overpass_query = f"""
@@ -106,7 +131,7 @@ class RestaurantViewSet(viewsets.ReadOnlyModelViewSet):
     
     def get_restaurant_image(self, cuisine):
         # Replace with your Pexels API key
-        pexels_api_key = "YOUR_PEXELS_API_KEY"
+        pexels_api_key = "PEXELS_API_KEY"
         
         headers = {
             "Authorization": pexels_api_key
@@ -130,49 +155,15 @@ class RestaurantViewSet(viewsets.ReadOnlyModelViewSet):
 class ReservationViewSet(viewsets.ModelViewSet):
     queryset = Reservation.objects.all()
     serializer_class = ReservationSerializer
-    permission_classes = [IsAuthenticated]
-    
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_staff:
-            return Reservation.objects.all()
-        return Reservation.objects.filter(user=user)
+    permission_classes = [AllowAny]
+
     
     def create(self, request):
-        serializer = self.serializer_class(data=request.data)
+        data = request.data       
+        data['user'] = request.user.id
+        
+        serializer = self.serializer_class(data=data)
         if serializer.is_valid():
-            # Associate with current user
-            serializer.save(user=request.user)
-            
-            # Get reservation details for email
-            reservation = Reservation.objects.get(id=serializer.data['id'])
-            restaurant = reservation.restaurant
-            
-            # Send confirmation email
-            subject = f"Reservation Confirmation - {restaurant.name}"
-            message = f"""
-            Hello {request.user.first_name or request.user.username},
-            
-            Your reservation has been booked successfully!
-            
-            Details:
-            Restaurant: {restaurant.name}
-            Address: {restaurant.address}
-            Date & Time: {reservation.reservation_datetime}
-            Party Size: {reservation.party_size}
-            
-            Special Requests: {reservation.special_requests or 'None'}
-            
-            Thank you for using our service!
-            """
-            
-            send_mail(
-                subject,
-                message,
-                settings.DEFAULT_FROM_EMAIL,
-                [request.user.email],
-                fail_silently=False,
-            )
-            
+            serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
