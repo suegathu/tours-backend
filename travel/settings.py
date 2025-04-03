@@ -84,7 +84,7 @@ WSGI_APPLICATION = 'travel.wsgi.application'
 # PostgreSQL Database Configuration
 DATABASES = {
     'default': {
-        'ENGINE': config('DATABASE_ENGINE'),
+        'ENGINE': config('DB_ENGINE'),
         'NAME': config('DB_NAME'),
         'USER': config('DB_USER'),
         'PASSWORD': config('DB_PASSWORD'),
