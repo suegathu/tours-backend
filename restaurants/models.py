@@ -1,6 +1,9 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.conf import settings
+from accounts.models import UserProfile  
+
+User = get_user_model()
 
 class Restaurant(models.Model):
     name = models.CharField(max_length=200)
@@ -26,6 +29,7 @@ class Reservation(models.Model):
     
     restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='reservations')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user_profile = models.ForeignKey(UserProfile, on_delete=models.CASCADE, null=True, blank=True)  # Linking to UserProfile
     reservation_datetime = models.DateTimeField()
     party_size = models.PositiveIntegerField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -38,3 +42,7 @@ class Reservation(models.Model):
     
     def __str__(self):
         return f"{self.restaurant.name} - {self.reservation_datetime}"
+
+    def get_user_profile(self):
+        """Access the user profile from the reservation."""
+        return self.user.profile  

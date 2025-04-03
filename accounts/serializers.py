@@ -4,9 +4,11 @@ from .models import User, UserProfile
 from restaurants.models import Reservation  # Import from restaurants app
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    profile_picture = serializers.ImageField(required=False) 
+
     class Meta:
         model = UserProfile
-        fields = ['profile_picture', 'bio', 'phone_number']
+        fields = ['bio', 'phone_number', 'profile_picture']
 
 class ReservationSerializer(serializers.ModelSerializer):
     class Meta:

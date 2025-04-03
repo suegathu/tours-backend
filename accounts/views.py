@@ -7,28 +7,47 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import UserProfile
 from restaurants.models import Reservation  
-
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import IsAuthenticated
 
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]  # To handle file uploads
 
     def get(self, request):
-        profile, created = UserProfile.objects.get_or_create(user=request.user)
-        reservations = Reservation.objects.filter(user=request.user)
+        """
+        Retrieve the profile of the logged-in user along with their reservations.
+        """
+        try:
+            profile, created = UserProfile.objects.get_or_create(user=request.user)
+            reservations = Reservation.objects.filter(user=request.user)
 
-        return Response({
-            "profile": UserProfileSerializer(profile).data,
-            "reservations": ReservationSerializer(reservations, many=True).data,
-        })
+            return Response({
+                "profile": UserProfileSerializer(profile).data,
+                "reservations": ReservationSerializer(reservations, many=True).data,
+            })
+        except UserProfile.DoesNotExist:
+            return Response({"detail": "Profile not found."}, status=404)
 
     def put(self, request):
-        profile = UserProfile.objects.get(user=request.user)
+        """
+        Update the profile of the logged-in user.
+        Allows partial updates, including handling file uploads.
+        """
+        try:
+            profile = UserProfile.objects.get(user=request.user)
+        except UserProfile.DoesNotExist:
+            return Response({"detail": "Profile not found."}, status=404)
+
+        # Using the serializer to validate and save the data, including file fields.
         serializer = UserProfileSerializer(profile, data=request.data, partial=True)
+
         if serializer.is_valid():
-            serializer.save()
+            serializer.save()  # Save changes to the profile
             return Response(serializer.data, status=200)
+        
         return Response(serializer.errors, status=400)
-    
+
 class RegisterView(APIView):
     permission_classes = [AllowAny]
 
