@@ -1,0 +1,110 @@
+From 640abc7fb276286fa31fed587c573ba0adc01f44 Mon Sep 17 00:00:00 2001
+From: Suegathh <suzzainnegathu@gmail.com>
+Date: Fri, 4 Apr 2025 02:13:49 +0300
+Subject: [PATCH] Fix overpass
+
+---
+ .gitignore           |  6 ++++--
+ requirements.txt     |  1 +
+ restaurants/views.py | 18 ++++++++++++++----
+ 3 files changed, 19 insertions(+), 6 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index feb8f72..960f08b 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,4 +1,6 @@
+-.env
++.env*
++
++*.sqlite
+ 
+ # Byte-compiled / optimized / DLL files
+ __pycache__/
+@@ -96,4 +98,4 @@ venv.bak/
+ 
+ firebase_config.json
+ 
+-qrcodes
+\ No newline at end of file
++qrcodes
+diff --git a/requirements.txt b/requirements.txt
+index 85c9d57..6545aad 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -32,6 +32,7 @@ python-decouple==3.8
+ python-dotenv==1.1.0
+ qrcode==8.0
+ requests==2.32.3
++ requests-cache==1.2.1 
+ selenium==4.30.0
+ six==1.17.0
+ sniffio==1.3.1
+diff --git a/restaurants/views.py b/restaurants/views.py
+index 68a6769..1d41d49 100644
+--- a/restaurants/views.py
++++ b/restaurants/views.py
+@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny
+ from django.core.mail import send_mail
+ from django.conf import settings
+ import requests
++from requests_cache import CachedSession
+ import json
+ from .models import Restaurant, Reservation
+ from .serializers import RestaurantSerializer, ReservationSerializer
+@@ -51,7 +52,7 @@ class RestaurantViewSet(viewsets.ReadOnlyModelViewSet):
+         
+         # Add a User-Agent header as required by Nominatim's usage policy
+         headers = {
+-            'User-Agent': 'RestaurantFinderApp/1.0'
++            'User-Agent': 'TravelWithSue/0.1'
+         }
+         
+         try:
+@@ -76,9 +77,11 @@ class RestaurantViewSet(viewsets.ReadOnlyModelViewSet):
+         node["amenity"="restaurant"](around:{radius},{lat},{lon});
+         out body;
+         """
++
++        session = CachedSession()
+         
+         try:
+-            response = requests.get(overpass_url, params={"data": overpass_query})
++            response = session.get(overpass_url, params={"data": overpass_query})
+             data = response.json()
+             
+             results = []
+@@ -96,11 +99,11 @@ class RestaurantViewSet(viewsets.ReadOnlyModelViewSet):
+                     restaurant, created = Restaurant.objects.update_or_create(
+                         osm_id=osm_id,
+                         defaults={
+-                            'name': name,
++                            'name': truncate_string(name, 200),
+                             'address': address,
+                             'latitude': element.get('lat'),
+                             'longitude': element.get('lon'),
+-                            'cuisine': cuisine,
++                            'cuisine': truncate_string(cuisine, 100),
+                             'phone': tags.get('phone', ''),
+                             'website': tags.get('website', '')
+                         }
+@@ -161,9 +164,16 @@ class ReservationViewSet(viewsets.ModelViewSet):
+     def create(self, request):
+         data = request.data       
+         data['user'] = request.user.id
++
++        print(request.user)
+         
+         serializer = self.serializer_class(data=data)
+         if serializer.is_valid():
+             serializer.save()
+             return Response(serializer.data, status=status.HTTP_201_CREATED)
+         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
++
++def truncate_string(s, length=100):
++    if len(s) > length:
++        return s[:length-3] + '...'
++    return s
+-- 
+2.49.0
+

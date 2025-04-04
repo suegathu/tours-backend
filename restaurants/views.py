@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny
 from django.core.mail import send_mail
 from django.conf import settings
 import requests
+from requests_cache import CachedSession
 import json
 from .models import Restaurant, Reservation
 from .serializers import RestaurantSerializer, ReservationSerializer
@@ -51,7 +52,7 @@ class RestaurantViewSet(viewsets.ReadOnlyModelViewSet):
         
         # Add a User-Agent header as required by Nominatim's usage policy
         headers = {
-            'User-Agent': 'RestaurantFinderApp/1.0'
+            'User-Agent': 'TravelWithSue/0.1'
         }
         
         try:
@@ -76,9 +77,11 @@ class RestaurantViewSet(viewsets.ReadOnlyModelViewSet):
         node["amenity"="restaurant"](around:{radius},{lat},{lon});
         out body;
         """
+
+        session = CachedSession()
         
         try:
-            response = requests.get(overpass_url, params={"data": overpass_query})
+            response = session.get(overpass_url, params={"data": overpass_query})
             data = response.json()
             
             results = []
@@ -96,11 +99,11 @@ class RestaurantViewSet(viewsets.ReadOnlyModelViewSet):
                     restaurant, created = Restaurant.objects.update_or_create(
                         osm_id=osm_id,
                         defaults={
-                            'name': name,
+                            'name': truncate_string(name, 200),
                             'address': address,
                             'latitude': element.get('lat'),
                             'longitude': element.get('lon'),
-                            'cuisine': cuisine,
+                            'cuisine': truncate_string(cuisine, 100),
                             'phone': tags.get('phone', ''),
                             'website': tags.get('website', '')
                         }
@@ -161,9 +164,16 @@ class ReservationViewSet(viewsets.ModelViewSet):
     def create(self, request):
         data = request.data       
         data['user'] = request.user.id
+
+        print(request.user)
         
         serializer = self.serializer_class(data=data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+def truncate_string(s, length=100):
+    if len(s) > length:
+        return s[:length-3] + '...'
+    return s
